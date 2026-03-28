@@ -1,0 +1,147 @@
+{
+  "name": "Main branch Commit status report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 11
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e5b34126-54f7-427f-aad8-cd639f5e13dc",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://api.github.com/repos/CoinFantasy-AI/cfai-frontend/commits",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "sha",
+              "value": "main"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer <Token>"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        224,
+        0
+      ],
+      "id": "da569218-51fe-4a1f-a7f8-3e0ee38d6610",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "D09PS0J1LGZ",
+          "mode": "id"
+        },
+        "text": "=📊 *Daily GitHub Update* 🗓️ *{{ $json.date }} – main branch*\n\n{{ $json.text }}\n",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        672,
+        0
+      ],
+      "id": "001b57e5-c798-4771-aced-3aa16a44b96e",
+      "name": "Send a message",
+      "webhookId": "0d0c9ee9-ba82-48c6-bb6f-162ad6ec6aed",
+      "credentials": {
+        "slackApi": {
+          "id": "zTi5jseg6Dq7ZoAG",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const commits = $input.all();\n\n// Time window (UTC – GitHub safe)\nconst now = new Date();\nconst todayStart = new Date(now);\ntodayStart.setHours(0, 0, 0, 0);\n\nconst yesterdayStart = new Date(todayStart);\nyesterdayStart.setDate(todayStart.getDate() - 1);\n\nconst formattedDate = yesterdayStart.toISOString().split('T')[0];\n\n// Merge branches to ignore\nconst IGNORE_BRANCHES = ['stg', 'qa', 'dev'];\n\nconst seen = new Set();\nconst lines = [];\n\nfor (const item of commits) {\n  const rawMsg = item.json?.commit?.message;\n  const author = item.json?.commit?.author?.name;\n  const dateStr = item.json?.commit?.author?.date;\n\n  if (!rawMsg || !dateStr) continue;\n\n  const commitDate = new Date(dateStr);\n  if (commitDate < yesterdayStart || commitDate >= todayStart) continue;\n\n  // ✅ IMPORTANT: take only the first line\n  const msg = rawMsg.split('\\n')[0];\n  const lowerMsg = msg.toLowerCase();\n\n  // ❌ Skip unwanted merge PRs\n  if (lowerMsg.startsWith('merge pull request')) {\n    const match = lowerMsg.match(/from .*\\/([^ ]+)/);\n    if (match) {\n      const branch = match[1].toLowerCase();\n      if (IGNORE_BRANCHES.includes(branch)) continue;\n    }\n  }\n\n  if (seen.has(msg)) continue;\n  seen.add(msg);\n\n  lines.push(`- ${author}: ${msg}`);\n}\n\nreturn [\n  {\n    json: {\n      date: formattedDate,\n      text:\n        lines.length > 0\n          ? lines.join('\\n')\n          : 'No meaningful updates were made yesterday.',\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "aedd0994-0478-4520-ba50-ae2642a8b626",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "aa11dff8-ecdc-43ce-83bd-3804caa779d3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3909261488a88a402faf344b779141a488197401eeede833f8ad908132fa823a"
+  },
+  "id": "EyLLTXV1XUVnXmrT",
+  "tags": []
+}
